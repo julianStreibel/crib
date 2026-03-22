@@ -18,8 +18,8 @@ const (
 )
 
 type deviceDescription struct {
-	XMLName    xml.Name `xml:"root"`
-	Device     ddDevice `xml:"device"`
+	XMLName xml.Name `xml:"root"`
+	Device  ddDevice `xml:"device"`
 }
 
 type ddDevice struct {

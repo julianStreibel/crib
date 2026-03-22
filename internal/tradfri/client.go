@@ -28,7 +28,7 @@ func NewClient(host, identity, psk string) *Client {
 
 func (c *Client) dial() (*udpClient.Conn, error) {
 	addr := c.host + ":5684"
-	return coapdtls.Dial(addr, &piondtls.Config{
+	return coapdtls.Dial(addr, &piondtls.Config{ //nolint:staticcheck // go-coap requires Config, new API not yet supported
 		PSK: func(hint []byte) ([]byte, error) {
 			return []byte(c.psk), nil
 		},
@@ -78,7 +78,7 @@ func (c *Client) put(path string, payload string) error {
 // Register performs the one-time PSK registration with the gateway.
 func Register(host, securityCode, clientName string) (identity, psk string, err error) {
 	addr := host + ":5684"
-	conn, err := coapdtls.Dial(addr, &piondtls.Config{
+	conn, err := coapdtls.Dial(addr, &piondtls.Config{ //nolint:staticcheck // go-coap requires Config
 		PSK: func(hint []byte) ([]byte, error) {
 			return []byte(securityCode), nil
 		},

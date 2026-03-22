@@ -1,7 +1,6 @@
 package sonos
 
 import (
-	"encoding/xml"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,15 +9,6 @@ import (
 )
 
 var httpClient = &http.Client{Timeout: 5 * time.Second}
-
-type soapEnvelope struct {
-	XMLName xml.Name `xml:"Envelope"`
-	Body    soapBody `xml:"Body"`
-}
-
-type soapBody struct {
-	Content []byte `xml:",innerxml"`
-}
 
 func soapRequest(speakerIP, endpoint, serviceURN, action string, params string) ([]byte, error) {
 	url := fmt.Sprintf("http://%s:1400%s", speakerIP, endpoint)

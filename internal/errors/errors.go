@@ -60,14 +60,14 @@ func (e *Error) ExitCode() int {
 type Code int
 
 const (
-	CodeNotFound       Code = iota // device/speaker/service not found
-	CodeUnreachable                // device exists but is offline
-	CodeNotConfigured              // provider not set up
-	CodeAuthExpired                // token expired, needs re-auth
-	CodeNoSession                  // no active playback session
-	CodeInvalidArg                 // bad user input
-	CodeNetwork                    // network/connection failure
-	CodeProviderError              // provider-specific error
+	CodeNotFound      Code = iota // device/speaker/service not found
+	CodeUnreachable               // device exists but is offline
+	CodeNotConfigured             // provider not set up
+	CodeAuthExpired               // token expired, needs re-auth
+	CodeNoSession                 // no active playback session
+	CodeInvalidArg                // bad user input
+	CodeNetwork                   // network/connection failure
+	CodeProviderError             // provider-specific error
 )
 
 // NotFound creates a "not found" error with available alternatives.

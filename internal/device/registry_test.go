@@ -10,8 +10,8 @@ type mockDeviceProvider struct {
 	devices    []Device
 }
 
-func (m *mockDeviceProvider) Name() string              { return m.name }
-func (m *mockDeviceProvider) IsConfigured() bool        { return m.configured }
+func (m *mockDeviceProvider) Name() string               { return m.name }
+func (m *mockDeviceProvider) IsConfigured() bool         { return m.configured }
 func (m *mockDeviceProvider) Devices() ([]Device, error) { return m.devices, nil }
 
 type mockDevice struct {
@@ -21,24 +21,16 @@ type mockDevice struct {
 	provider string
 }
 
-func (m *mockDevice) ID() string           { return m.id }
-func (m *mockDevice) Name() string         { return m.name }
-func (m *mockDevice) Type() DeviceType     { return m.dtype }
-func (m *mockDevice) Provider() string     { return m.provider }
-func (m *mockDevice) Model() string        { return "mock" }
-func (m *mockDevice) State() DeviceState   { return DeviceState{On: true, Reachable: true} }
-func (m *mockDevice) TurnOn() error        { return nil }
-func (m *mockDevice) TurnOff() error       { return nil }
-func (m *mockDevice) Toggle() error        { return nil }
+func (m *mockDevice) ID() string              { return m.id }
+func (m *mockDevice) Name() string            { return m.name }
+func (m *mockDevice) Type() DeviceType        { return m.dtype }
+func (m *mockDevice) Provider() string        { return m.provider }
+func (m *mockDevice) Model() string           { return "mock" }
+func (m *mockDevice) State() DeviceState      { return DeviceState{On: true, Reachable: true} }
+func (m *mockDevice) TurnOn() error           { return nil }
+func (m *mockDevice) TurnOff() error          { return nil }
+func (m *mockDevice) Toggle() error           { return nil }
 func (m *mockDevice) SetBrightness(int) error { return nil }
-
-type mockSpeakerProvider struct {
-	name     string
-	speakers []Speaker
-}
-
-func (m *mockSpeakerProvider) Name() string                  { return m.name }
-func (m *mockSpeakerProvider) Discover() ([]Speaker, error)  { return m.speakers, nil }
 
 func TestRegistryDeviceProviders(t *testing.T) {
 	r := NewRegistry()

@@ -56,7 +56,7 @@ func LoadSpotify() (clientID, clientSecret string, err error) {
 	clientID = viper.GetString("spotify_client_id")
 	clientSecret = viper.GetString("spotify_client_secret")
 	if clientID == "" || clientSecret == "" {
-		return "", "", fmt.Errorf("Spotify credentials not configured. Run: crib setup")
+		return "", "", fmt.Errorf("spotify credentials not configured, run: crib setup")
 	}
 	return clientID, clientSecret, nil
 }
@@ -66,7 +66,7 @@ func LoadSpotifyToken() (accessToken, refreshToken string, expiresAt int64, err 
 	refreshToken = viper.GetString("spotify_refresh_token")
 	expiresAt = viper.GetInt64("spotify_token_expires_at")
 	if refreshToken == "" {
-		return "", "", 0, fmt.Errorf("Spotify not logged in. Run: crib spotify login")
+		return "", "", 0, fmt.Errorf("spotify not logged in, run: crib spotify login")
 	}
 	return accessToken, refreshToken, expiresAt, nil
 }
@@ -110,12 +110,12 @@ func SetMultiple(values map[string]string) error {
 
 func Show() map[string]string {
 	return map[string]string{
-		"tradfri_host":        viper.GetString("tradfri_host"),
-		"tradfri_identity":    viper.GetString("tradfri_identity"),
-		"tradfri_psk":         maskToken(viper.GetString("tradfri_psk")),
-		"spotify_client_id":   viper.GetString("spotify_client_id"),
+		"tradfri_host":          viper.GetString("tradfri_host"),
+		"tradfri_identity":      viper.GetString("tradfri_identity"),
+		"tradfri_psk":           maskToken(viper.GetString("tradfri_psk")),
+		"spotify_client_id":     viper.GetString("spotify_client_id"),
 		"spotify_client_secret": maskToken(viper.GetString("spotify_client_secret")),
-		"config_file":         viper.ConfigFileUsed(),
+		"config_file":           viper.ConfigFileUsed(),
 	}
 }
 

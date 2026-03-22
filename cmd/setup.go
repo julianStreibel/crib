@@ -30,7 +30,8 @@ func runSetup(cmd *cobra.Command, args []string) {
 	reader := bufio.NewReader(os.Stdin)
 	fmt.Println("crib setup")
 	fmt.Println("================")
-	fmt.Println("Each step is optional — press Enter to skip.\n")
+	fmt.Println("Each step is optional — press Enter to skip.")
+	fmt.Println()
 
 	setupTradfri(reader)
 	fmt.Println()

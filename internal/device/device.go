@@ -10,7 +10,7 @@ package device
 type DeviceType int
 
 const (
-	TypeLight  DeviceType = iota
+	TypeLight DeviceType = iota
 	TypeSwitch
 	TypeSensor
 )
@@ -32,7 +32,7 @@ func (t DeviceType) String() string {
 type DeviceState struct {
 	On         bool
 	Reachable  bool
-	Brightness int  // 0-100, only meaningful if Dimmable is true
+	Brightness int // 0-100, only meaningful if Dimmable is true
 	Dimmable   bool
 }
 
@@ -53,8 +53,8 @@ type Device interface {
 
 // DeviceProvider discovers and manages devices from a single integration.
 type DeviceProvider interface {
-	Name() string              // provider identifier: "tradfri", "hue"
-	IsConfigured() bool        // true if credentials/config exist
+	Name() string       // provider identifier: "tradfri", "hue"
+	IsConfigured() bool // true if credentials/config exist
 	Devices() ([]Device, error)
 }
 
@@ -94,7 +94,7 @@ type Speaker interface {
 
 // SpeakerProvider discovers and manages speakers from a single integration.
 type SpeakerProvider interface {
-	Name() string                  // provider identifier: "sonos"
+	Name() string // provider identifier: "sonos"
 	Discover() ([]Speaker, error)
 }
 
