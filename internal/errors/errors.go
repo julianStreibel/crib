@@ -76,7 +76,7 @@ func NotFound(kind, query string, available []string) *Error {
 		Code:      CodeNotFound,
 		Message:   fmt.Sprintf("no %s matching '%s'", kind, query),
 		Available: available,
-		Hint:      fmt.Sprintf("use 'crib %s list' to see all %ss", kind, kind),
+		Hint:      fmt.Sprintf("use 'crib %ss list' to see all %ss", kind, kind),
 	}
 }
 

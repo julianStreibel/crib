@@ -18,8 +18,8 @@ func TestNotFound(t *testing.T) {
 	if !strings.Contains(err.Error(), "küche") {
 		t.Errorf("error should list alternatives: %s", err.Error())
 	}
-	if !strings.Contains(err.Error(), "Hint:") {
-		t.Errorf("error should have a hint: %s", err.Error())
+	if !strings.Contains(err.Error(), "crib devices list") {
+		t.Errorf("error hint should reference correct command: %s", err.Error())
 	}
 	if err.ExitCode() != ExitUserError {
 		t.Errorf("expected ExitUserError, got %d", err.ExitCode())
