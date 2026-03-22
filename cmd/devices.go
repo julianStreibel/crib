@@ -22,6 +22,7 @@ var devicesListCmd = &cobra.Command{
 	Short: "List all devices and their states",
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustTradfriClient()
+		defer client.Close()
 		devices, err := client.GetAllDevices()
 		if err != nil {
 			exitErr(cerrors.Provider("tradfri", err))
@@ -49,6 +50,7 @@ var devicesOnCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustTradfriClient()
+		defer client.Close()
 		dev := mustFindDevice(client, args[0])
 		checkReachable(dev)
 		if err := client.TurnOn(dev); err != nil {
@@ -64,6 +66,7 @@ var devicesOffCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustTradfriClient()
+		defer client.Close()
 		dev := mustFindDevice(client, args[0])
 		checkReachable(dev)
 		if err := client.TurnOff(dev); err != nil {
@@ -79,6 +82,7 @@ var devicesToggleCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustTradfriClient()
+		defer client.Close()
 		dev := mustFindDevice(client, args[0])
 		checkReachable(dev)
 		if err := client.Toggle(dev); err != nil {
@@ -94,6 +98,7 @@ var devicesDimCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustTradfriClient()
+		defer client.Close()
 		dev := mustFindDevice(client, args[0])
 		checkReachable(dev)
 
