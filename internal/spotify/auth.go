@@ -88,7 +88,7 @@ func AuthorizePKCE(clientID string) (*TokenData, error) {
 		})
 
 		srv := &http.Server{Handler: mux}
-		go srv.Serve(listener)
+		go func() { _ = srv.Serve(listener) }()
 		defer srv.Close()
 	}
 
@@ -296,7 +296,7 @@ func (p *PlayerClient) request(method, endpoint string, body io.Reader) ([]byte,
 	}
 
 	if resp.StatusCode >= 400 {
-		return nil, resp.StatusCode, fmt.Errorf("Spotify API error (%d): %s", resp.StatusCode, respBody)
+		return nil, resp.StatusCode, fmt.Errorf("spotify API error (%d): %s", resp.StatusCode, respBody)
 	}
 
 	return respBody, resp.StatusCode, nil

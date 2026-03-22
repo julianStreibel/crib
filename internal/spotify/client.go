@@ -79,7 +79,7 @@ func (c *Client) authenticate() error {
 
 	if resp.StatusCode != 200 {
 		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("Spotify auth failed (%d): %s", resp.StatusCode, body)
+		return fmt.Errorf("spotify auth failed (%d): %s", resp.StatusCode, body)
 	}
 
 	var result struct {
@@ -117,7 +117,7 @@ func (c *Client) apiGet(endpoint string) ([]byte, error) {
 		return nil, err
 	}
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("Spotify API error (%d): %s", resp.StatusCode, body)
+		return nil, fmt.Errorf("spotify API error (%d): %s", resp.StatusCode, body)
 	}
 	return body, nil
 }
