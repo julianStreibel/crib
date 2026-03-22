@@ -327,7 +327,7 @@ func mustSpotifySearchClient() *spotify.Client {
 }
 
 func mustDiscoverSpeakers() []*sonos.Speaker {
-	speakers, err := sonos.Discover(3 * time.Second)
+	speakers, err := sonos.Discover(1500 * time.Millisecond)
 	if err != nil {
 		exitErr(cerrors.Provider("sonos", err))
 	}
