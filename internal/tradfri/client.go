@@ -10,6 +10,7 @@ import (
 	"time"
 
 	piondtls "github.com/pion/dtls/v3"
+	"golang.org/x/sync/errgroup"
 	coapdtls "github.com/plgd-dev/go-coap/v3/dtls"
 	"github.com/plgd-dev/go-coap/v3/message"
 	udpClient "github.com/plgd-dev/go-coap/v3/udp/client"
@@ -178,22 +179,35 @@ func (c *Client) GetDevice(id int) (*Device, error) {
 	return parseDevice(raw), nil
 }
 
-// GetAllDevices returns all devices from the gateway.
+// GetAllDevices returns all devices from the gateway, fetching them concurrently.
 func (c *Client) GetAllDevices() ([]*Device, error) {
 	ids, err := c.ListDeviceIDs()
 	if err != nil {
 		return nil, err
 	}
 
-	var devices []*Device
-	for _, id := range ids {
-		dev, err := c.GetDevice(id)
-		if err != nil {
-			continue
-		}
-		devices = append(devices, dev)
+	devices := make([]*Device, len(ids))
+	g := new(errgroup.Group)
+	for i, id := range ids {
+		g.Go(func() error {
+			dev, err := c.GetDevice(id)
+			if err != nil {
+				return nil // skip failures
+			}
+			devices[i] = dev
+			return nil
+		})
 	}
-	return devices, nil
+	_ = g.Wait()
+
+	// Filter out nils (failed fetches).
+	result := make([]*Device, 0, len(devices))
+	for _, d := range devices {
+		if d != nil {
+			result = append(result, d)
+		}
+	}
+	return result, nil
 }
 
 // TurnOn turns on a light or plug.
