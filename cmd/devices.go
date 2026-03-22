@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/julianStreibel/crib/internal/cache"
 	"github.com/julianStreibel/crib/internal/config"
 	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/julianStreibel/crib/internal/tradfri"
@@ -27,6 +28,8 @@ var devicesListCmd = &cobra.Command{
 		if err != nil {
 			exitErr(cerrors.Provider("tradfri", err))
 		}
+
+		updateDeviceCache(devices)
 
 		if len(devices) == 0 {
 			fmt.Println("No devices found.")
@@ -142,11 +145,24 @@ func mustFindDevice(client *tradfri.Client, query string) *tradfri.Device {
 		return dev
 	}
 
-	// Search by name
+	// Try cache for fast lookup by name
+	if c, err := cache.Load(); err == nil {
+		if entry := c.FindDevice(query); entry != nil {
+			dev, err := client.GetDevice(entry.ID)
+			if err == nil {
+				return dev
+			}
+			// Cache hit but device fetch failed — fall through to full discovery
+		}
+	}
+
+	// Full discovery (cache miss or stale cache)
 	devices, err := client.GetAllDevices()
 	if err != nil {
 		exitErr(cerrors.Provider("tradfri", err))
 	}
+
+	updateDeviceCache(devices)
 
 	query = strings.ToLower(query)
 
@@ -170,6 +186,19 @@ func mustFindDevice(client *tradfri.Client, query string) *tradfri.Device {
 	}
 	exitErr(cerrors.NotFound("device", query, available))
 	return nil
+}
+
+func updateDeviceCache(devices []*tradfri.Device) {
+	c, _ := cache.Load()
+	if c == nil {
+		c = &cache.Cache{}
+	}
+	entries := make([]cache.DeviceEntry, 0, len(devices))
+	for _, d := range devices {
+		entries = append(entries, cache.DeviceEntry{ID: d.ID, Name: d.Name})
+	}
+	c.Devices = entries
+	_ = cache.Save(c)
 }
 
 func checkReachable(dev *tradfri.Device) {
