@@ -2,11 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/julianStreibel/crib/internal/config"
+	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/julianStreibel/crib/internal/spotify"
 	"github.com/spf13/cobra"
 )
@@ -22,19 +21,16 @@ var spotifyLoginCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		clientID, _, err := config.LoadSpotify()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.NotConfigured("Spotify"))
 		}
 
 		token, err := spotify.AuthorizePKCE(clientID)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 
 		if err := config.SaveSpotifyToken(token.AccessToken, token.RefreshToken, token.ExpiresAt); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving token: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("config", err))
 		}
 
 		fmt.Println("Logged in to Spotify successfully.")
@@ -48,11 +44,11 @@ var spotifyDevicesCmd = &cobra.Command{
 		client := mustPlayerClient()
 		devices, err := client.GetDevices()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 		if len(devices) == 0 {
 			fmt.Println("No active Spotify devices found.")
+			fmt.Println("Hint: open Spotify on a device first.")
 			return
 		}
 		for _, d := range devices {
@@ -72,12 +68,10 @@ var spotifyStatusCmd = &cobra.Command{
 		client := mustPlayerClient()
 		state, err := client.GetPlayerState()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 		if state == nil {
-			fmt.Println("Nothing currently playing.")
-			return
+			exitErr(cerrors.NoSession("Spotify"))
 		}
 
 		status := "paused"
@@ -118,8 +112,7 @@ var spotifyPlayCmd = &cobra.Command{
 
 		if len(args) == 0 {
 			if err := client.Play(""); err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitSpotifyErr(err)
 			}
 			fmt.Println("Resumed playback.")
 			return
@@ -127,49 +120,40 @@ var spotifyPlayCmd = &cobra.Command{
 
 		query := strings.Join(args, " ")
 
-		// If it's a Spotify URI, play it directly
 		if strings.HasPrefix(query, "spotify:") {
 			if err := client.PlayURI(query, ""); err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitSpotifyErr(err)
 			}
 			fmt.Printf("Playing %s\n", query)
 			return
 		}
 
-		// Search and play top result
 		searchClient := mustSpotifySearchClient()
 		results, err := searchClient.Search(query, "track,playlist,album", 1)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error searching: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 
-		// Prefer tracks, then playlists, then albums
 		if len(results.Tracks) > 0 {
 			t := results.Tracks[0]
 			if err := client.PlayURI(t.URI, ""); err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitSpotifyErr(err)
 			}
 			fmt.Printf("Playing %s - %s\n", t.Artists, t.Name)
 		} else if len(results.Playlists) > 0 {
 			p := results.Playlists[0]
 			if err := client.PlayURI(p.URI, ""); err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitSpotifyErr(err)
 			}
 			fmt.Printf("Playing playlist: %s\n", p.Name)
 		} else if len(results.Albums) > 0 {
 			a := results.Albums[0]
 			if err := client.PlayURI(a.URI, ""); err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitSpotifyErr(err)
 			}
 			fmt.Printf("Playing album: %s - %s\n", a.Artists, a.Name)
 		} else {
-			fmt.Fprintf(os.Stderr, "No results found for %q\n", query)
-			os.Exit(1)
+			exitErr(cerrors.NotFound("track", query, nil))
 		}
 	},
 }
@@ -180,8 +164,7 @@ var spotifyPauseCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustPlayerClient()
 		if err := client.Pause(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Println("Paused.")
 	},
@@ -193,8 +176,7 @@ var spotifyNextCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustPlayerClient()
 		if err := client.Next(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Println("Skipped to next track.")
 	},
@@ -206,8 +188,7 @@ var spotifyPrevCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustPlayerClient()
 		if err := client.Previous(); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Println("Previous track.")
 	},
@@ -220,30 +201,13 @@ var spotifyVolumeCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustPlayerClient()
 
-		var vol int
-		switch args[0] {
-		case "up":
+		vol := parseVolume(args[0], func() int {
 			state, err := client.GetPlayerState()
 			if err != nil || state == nil {
-				fmt.Fprintf(os.Stderr, "error: cannot get current volume\n")
-				os.Exit(1)
+				exitErr(cerrors.NoSession("Spotify"))
 			}
-			vol = state.Device.VolumePercent + 5
-		case "down":
-			state, err := client.GetPlayerState()
-			if err != nil || state == nil {
-				fmt.Fprintf(os.Stderr, "error: cannot get current volume\n")
-				os.Exit(1)
-			}
-			vol = state.Device.VolumePercent - 5
-		default:
-			v, err := strconv.Atoi(args[0])
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: volume must be 0-100, 'up', or 'down'\n")
-				os.Exit(1)
-			}
-			vol = v
-		}
+			return state.Device.VolumePercent
+		})
 
 		if vol < 0 {
 			vol = 0
@@ -253,8 +217,7 @@ var spotifyVolumeCmd = &cobra.Command{
 		}
 
 		if err := client.SetVolume(vol); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Printf("Volume set to %d%%\n", vol)
 	},
@@ -270,26 +233,24 @@ var spotifyTransferCmd = &cobra.Command{
 
 		devices, err := client.GetDevices()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 
 		for _, d := range devices {
 			if strings.Contains(strings.ToLower(d.Name), query) {
 				if err := client.TransferPlayback(d.ID, true); err != nil {
-					fmt.Fprintf(os.Stderr, "error: %v\n", err)
-					os.Exit(1)
+					exitSpotifyErr(err)
 				}
 				fmt.Printf("Transferred playback to %s\n", d.Name)
 				return
 			}
 		}
 
-		fmt.Fprintf(os.Stderr, "No device matching %q found. Available:\n", query)
-		for _, d := range devices {
-			fmt.Fprintf(os.Stderr, "  %s (%s)\n", d.Name, d.Type)
+		available := make([]string, len(devices))
+		for i, d := range devices {
+			available[i] = fmt.Sprintf("%s (%s)", d.Name, d.Type)
 		}
-		os.Exit(1)
+		exitErr(cerrors.NotFound("device", query, available))
 	},
 }
 
@@ -308,12 +269,13 @@ var spotifyRepeatCmd = &cobra.Command{
 		case "off", "none":
 			mode = "off"
 		default:
-			fmt.Fprintf(os.Stderr, "error: mode must be track, playlist, or off\n")
-			os.Exit(1)
+			exitErr(cerrors.InvalidArgWithHint(
+				fmt.Sprintf("unknown repeat mode '%s'", mode),
+				"usage: crib spotify repeat <track|playlist|off>",
+			))
 		}
 		if err := client.SetRepeat(mode); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Printf("Repeat set to %s\n", mode)
 	},
@@ -327,8 +289,7 @@ var spotifyShuffleCmd = &cobra.Command{
 		client := mustPlayerClient()
 		on := args[0] == "on" || args[0] == "true"
 		if err := client.SetShuffle(on); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		if on {
 			fmt.Println("Shuffle on.")
@@ -353,20 +314,17 @@ var spotifyQueueCmd = &cobra.Command{
 			searchClient := mustSpotifySearchClient()
 			results, err := searchClient.Search(query, "track", 1)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitErr(cerrors.Provider("spotify", err))
 			}
 			if len(results.Tracks) == 0 {
-				fmt.Fprintf(os.Stderr, "No tracks found for %q\n", query)
-				os.Exit(1)
+				exitErr(cerrors.NotFound("track", query, nil))
 			}
 			uri = results.Tracks[0].URI
 			fmt.Printf("Adding %s - %s to queue\n", results.Tracks[0].Artists, results.Tracks[0].Name)
 		}
 
 		if err := client.AddToQueue(uri); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Println("Added to queue.")
 	},
@@ -381,57 +339,69 @@ var spotifyRadioCmd = &cobra.Command{
 		searchClient := mustSpotifySearchClient()
 		query := strings.Join(args, " ")
 
-		// Find the seed track
 		var trackID string
 		if strings.HasPrefix(query, "spotify:track:") {
 			trackID = strings.TrimPrefix(query, "spotify:track:")
 		} else {
 			results, err := searchClient.Search(query, "track", 1)
 			if err != nil {
-				fmt.Fprintf(os.Stderr, "error: %v\n", err)
-				os.Exit(1)
+				exitErr(cerrors.Provider("spotify", err))
 			}
 			if len(results.Tracks) == 0 {
-				fmt.Fprintf(os.Stderr, "No tracks found for %q\n", query)
-				os.Exit(1)
+				exitErr(cerrors.NotFound("track", query, nil))
 			}
 			trackID = strings.TrimPrefix(results.Tracks[0].URI, "spotify:track:")
 			fmt.Printf("Starting radio based on: %s - %s\n", results.Tracks[0].Artists, results.Tracks[0].Name)
 		}
 
-		// Get recommendations
 		uris, err := client.GetRecommendations(trackID, 30)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error getting recommendations: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("spotify", err))
 		}
 		if len(uris) == 0 {
-			fmt.Fprintf(os.Stderr, "No recommendations found\n")
-			os.Exit(1)
+			exitErr(&cerrors.Error{
+				Code:    cerrors.CodeProviderError,
+				Message: "no recommendations found for this track",
+				Hint:    "try a different seed track",
+			})
 		}
 
-		// Prepend the seed track
 		uris = append([]string{"spotify:track:" + trackID}, uris...)
 
 		if err := client.PlayURIs(uris, ""); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitSpotifyErr(err)
 		}
 		fmt.Printf("Playing radio (%d tracks)\n", len(uris))
 	},
 }
 
+// exitSpotifyErr converts common Spotify API errors to structured errors.
+func exitSpotifyErr(err error) {
+	msg := err.Error()
+	if strings.Contains(msg, "NO_ACTIVE_DEVICE") || strings.Contains(msg, "No active device") {
+		exitErr(cerrors.NoSession("Spotify"))
+	}
+	if strings.Contains(msg, "401") {
+		exitErr(cerrors.AuthExpired("spotify"))
+	}
+	if strings.Contains(msg, "403") && strings.Contains(msg, "Premium") {
+		exitErr(&cerrors.Error{
+			Code:    cerrors.CodeProviderError,
+			Message: "Spotify Premium is required for playback control",
+		})
+	}
+	exitErr(cerrors.Provider("spotify", err))
+}
+
 func mustPlayerClient() *spotify.PlayerClient {
 	clientID, _, err := config.LoadSpotify()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
-		os.Exit(1)
+		exitErr(cerrors.NotConfigured("Spotify"))
 	}
 
 	accessToken, refreshToken, expiresAt, err := config.LoadSpotifyToken()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\nRun: crib spotify login\n", err)
-		os.Exit(1)
+		exitErr(cerrors.AuthExpired("spotify"))
 	}
 
 	token := &spotify.TokenData{
