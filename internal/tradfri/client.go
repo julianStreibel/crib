@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"sync"
 	"time"
 
 	piondtls "github.com/pion/dtls/v3"
@@ -20,10 +21,40 @@ type Client struct {
 	host     string
 	identity string
 	psk      string
+
+	mu   sync.Mutex
+	conn *udpClient.Conn
 }
 
 func NewClient(host, identity, psk string) *Client {
 	return &Client{host: host, identity: identity, psk: psk}
+}
+
+// connect returns a cached DTLS connection, dialing on first call.
+func (c *Client) connect() (*udpClient.Conn, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn != nil {
+		return c.conn, nil
+	}
+	conn, err := c.dial()
+	if err != nil {
+		return nil, err
+	}
+	c.conn = conn
+	return c.conn, nil
+}
+
+// Close closes the cached DTLS connection if one exists.
+func (c *Client) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.conn != nil {
+		err := c.conn.Close()
+		c.conn = nil
+		return err
+	}
+	return nil
 }
 
 func (c *Client) dial() (*udpClient.Conn, error) {
@@ -38,11 +69,10 @@ func (c *Client) dial() (*udpClient.Conn, error) {
 }
 
 func (c *Client) get(path string) ([]byte, error) {
-	conn, err := c.dial()
+	conn, err := c.connect()
 	if err != nil {
 		return nil, fmt.Errorf("connecting to gateway: %w", err)
 	}
-	defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()
@@ -59,11 +89,10 @@ func (c *Client) get(path string) ([]byte, error) {
 }
 
 func (c *Client) put(path string, payload string) error {
-	conn, err := c.dial()
+	conn, err := c.connect()
 	if err != nil {
 		return fmt.Errorf("connecting to gateway: %w", err)
 	}
-	defer conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), defaultTimeout)
 	defer cancel()

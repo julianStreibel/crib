@@ -26,6 +26,7 @@ func runStatus(cmd *cobra.Command, args []string) {
 	cfg, err := config.LoadTradfri()
 	if err == nil {
 		client := tradfri.NewClient(cfg.TradfriHost, cfg.TradfriIdentity, cfg.TradfriPSK)
+		defer client.Close()
 		devices, err := client.GetAllDevices()
 		if err == nil && len(devices) > 0 {
 			fmt.Println("Devices:")
