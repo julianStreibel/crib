@@ -138,7 +138,7 @@ var spotifyPlayCmd = &cobra.Command{
 		}
 
 		// Search and play top result
-		searchClient := mustSpotifyClient()
+		searchClient := mustSpotifySearchClient()
 		results, err := searchClient.Search(query, "track,playlist,album", 1)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "error searching: %v\n", err)
@@ -350,7 +350,7 @@ var spotifyQueueCmd = &cobra.Command{
 		if strings.HasPrefix(query, "spotify:") {
 			uri = query
 		} else {
-			searchClient := mustSpotifyClient()
+			searchClient := mustSpotifySearchClient()
 			results, err := searchClient.Search(query, "track", 1)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -378,7 +378,7 @@ var spotifyRadioCmd = &cobra.Command{
 	Args:  cobra.MinimumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		client := mustPlayerClient()
-		searchClient := mustSpotifyClient()
+		searchClient := mustSpotifySearchClient()
 		query := strings.Join(args, " ")
 
 		// Find the seed track
