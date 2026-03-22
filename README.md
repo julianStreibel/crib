@@ -24,7 +24,7 @@ crib setup
 
 The interactive wizard walks you through each integration. All steps are optional — skip what you don't need.
 
-### Supported devices
+### Supported integrations
 
 | Integration | What you need | Config required |
 |---|---|---|
@@ -34,36 +34,49 @@ The interactive wizard walks you through each integration. All steps are optiona
 
 ## Usage
 
-### Lights & Switches (IKEA TRÅDFRI)
+### Status
 
 ```bash
-crib lights list
-crib lights on kitchen
-crib lights dim bedroom 50
-crib lights toggle office
-
-crib switches list
-crib switches on "salt lamp"
+crib status                              # Everything at a glance
 ```
 
-Devices can be targeted by ID or fuzzy name match.
+### Devices (lights, switches, plugs)
 
-### Sonos
+All device types from all providers in one view.
 
 ```bash
-crib sonos list                          # All speakers with status
-crib sonos play-search kitchen "chill"   # Search Spotify + play on speaker
-crib sonos volume kitchen 30
-crib sonos pause kitchen
+crib devices list                        # List all devices with state
+crib devices on kitchen                  # Turn on (fuzzy name match)
+crib devices off kitchen
+crib devices toggle office
+crib devices dim bedroom 50              # Set brightness (dimmable lights only)
+```
 
-# Grouping
+### Speakers
+
+Generic speaker commands — currently Sonos, extensible to other providers.
+
+```bash
+crib speakers list                       # All speakers with status/volume/track
+crib speakers play kitchen "chill vibes" # Search + play on a speaker
+crib speakers pause kitchen
+crib speakers volume kitchen 30
+crib speakers next kitchen
+crib speakers prev kitchen
+crib speakers repeat kitchen one         # Repeat: one, all, off
+crib speakers shuffle kitchen on
+crib speakers mute kitchen
+crib speakers search "lofi beats"        # Search Spotify, get URIs
+crib speakers play-track kitchen spotify:playlist:37i9dQZF1DX2TRYkJECvfC
+```
+
+### Sonos-Specific (grouping)
+
+```bash
 crib sonos group kitchen living-room     # Add to group
 crib sonos ungroup kitchen               # Make standalone
 crib sonos group-all                     # Group everything
-
-# Playback modes
-crib sonos repeat kitchen one            # Repeat track
-crib sonos shuffle kitchen on
+crib sonos ungroup-all                   # Ungroup everything
 ```
 
 ### Spotify Connect
@@ -73,22 +86,18 @@ Control your active Spotify session on any device (phone, laptop, speaker).
 ```bash
 crib spotify login                       # One-time browser auth
 crib spotify status                      # What's playing
+crib spotify devices                     # List Spotify Connect devices
 crib spotify play "bohemian rhapsody"    # Search + play
+crib spotify play                        # Resume playback
 crib spotify pause
 crib spotify next
+crib spotify prev
 crib spotify volume 50
 crib spotify transfer macbook            # Move to another device
 crib spotify radio "daft punk"           # Play similar tracks
 crib spotify queue "another song"        # Add to queue
-crib spotify repeat track                # Loop current song
+crib spotify repeat track                # Loop: track, playlist, off
 crib spotify shuffle on
-```
-
-### Search
-
-```bash
-crib sonos search "lofi beats"           # Search Spotify, get URIs
-crib sonos play-track kitchen spotify:playlist:37i9dQZF1DX2TRYkJECvfC
 ```
 
 ## Claude Code Plugin
@@ -126,18 +135,23 @@ The codebase is organized by integration:
 
 ```
 internal/
+├── device/     # Core interfaces (Device, Speaker, MusicService)
 ├── tradfri/    # IKEA TRÅDFRI (CoAP/DTLS)
 ├── sonos/      # Sonos (UPnP/SOAP)
-└── spotify/    # Spotify (Web API + Connect)
+├── spotify/    # Spotify (Web API + Connect)
+├── discovery/  # mDNS, SSDP discovery
+├── errors/     # Structured error types with hints
+└── config/     # Configuration management
 ```
 
 Each integration is self-contained. To add a new one:
 
-1. Create `internal/<name>/` with client code
-2. Add commands in `cmd/<name>.go`
-3. Add config loading in `internal/config/`
-4. Add a setup step in `cmd/setup.go`
-5. Update the plugin skill in `plugin/skills/home/SKILL.md`
+1. Implement `DeviceProvider` or `SpeakerProvider` from `internal/device/`
+2. Create `internal/<name>/` with client code
+3. Add commands in `cmd/<name>.go`
+4. Add config loading in `internal/config/`
+5. Add a setup step in `cmd/setup.go`
+6. Update the plugin skill in `plugin/skills/home/SKILL.md`
 
 ## License
 
