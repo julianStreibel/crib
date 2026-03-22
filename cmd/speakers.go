@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/julianStreibel/crib/internal/cache"
 	"github.com/julianStreibel/crib/internal/config"
 	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/julianStreibel/crib/internal/sonos"
@@ -338,10 +339,25 @@ func mustDiscoverSpeakers() []*sonos.Speaker {
 			Hint:    "make sure your speakers are powered on and on the same network",
 		})
 	}
+	updateSpeakerCache(speakers)
 	return speakers
 }
 
 func mustFindSpeaker(name string) *sonos.Speaker {
+	// Try cache for fast lookup (skip SSDP discovery)
+	if c, err := cache.Load(); err == nil {
+		if entry := c.FindSpeaker(name); entry != nil {
+			return &sonos.Speaker{
+				IP:            entry.IP,
+				UUID:          entry.UUID,
+				Room:          entry.Room,
+				Model:         entry.Model,
+				IsCoordinator: entry.IsCoordinator,
+				CoordinatorIP: entry.CoordinatorIP,
+			}
+		}
+	}
+	// Cache miss — full discovery
 	speakers := mustDiscoverSpeakers()
 	return findSpeakerIn(speakers, name)
 }
@@ -384,6 +400,26 @@ func parseVolume(arg string, getCurrentVol func() int) int {
 		}
 		return v
 	}
+}
+
+func updateSpeakerCache(speakers []*sonos.Speaker) {
+	c, _ := cache.Load()
+	if c == nil {
+		c = &cache.Cache{}
+	}
+	entries := make([]cache.SpeakerEntry, 0, len(speakers))
+	for _, s := range speakers {
+		entries = append(entries, cache.SpeakerEntry{
+			IP:            s.IP,
+			UUID:          s.UUID,
+			Room:          s.Room,
+			Model:         s.Model,
+			IsCoordinator: s.IsCoordinator,
+			CoordinatorIP: s.CoordinatorIP,
+		})
+	}
+	c.Speakers = entries
+	_ = cache.Save(c)
 }
 
 func init() {
