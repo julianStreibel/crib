@@ -20,6 +20,7 @@ brews:
   - repository:
       owner: julianStreibel
       name: homebrew-tap
+    token: "{{ .Env.HOMEBREW_TAP_GITHUB_TOKEN }}"
     homepage: https://github.com/julianStreibel/crib
     description: Smart home CLI for humans and LLM agents
     license: MIT
