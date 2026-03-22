@@ -11,6 +11,7 @@ import (
 	"github.com/julianStreibel/crib/internal/sonos"
 	"github.com/julianStreibel/crib/internal/spotify"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 var speakersCmd = &cobra.Command{
@@ -24,22 +25,39 @@ var speakersListCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		speakers := mustDiscoverSpeakers()
 
-		for _, s := range speakers {
+		type result struct {
+			speaker *sonos.Speaker
+			state   *sonos.PlaybackState
+			err     error
+		}
+		results := make([]result, len(speakers))
+		g := new(errgroup.Group)
+		for i, s := range speakers {
+			results[i].speaker = s
+			g.Go(func() error {
+				state, err := s.GetPlaybackState()
+				results[i].state = state
+				results[i].err = err
+				return nil
+			})
+		}
+		_ = g.Wait()
+
+		for _, r := range results {
 			group := ""
-			if !s.IsCoordinator {
+			if !r.speaker.IsCoordinator {
 				group = " [grouped]"
 			}
-			state, err := s.GetPlaybackState()
-			if err != nil {
-				fmt.Printf("%-20s %-12s vol:?   %s%s\n", s.Room, "error", s.Model, group)
+			if r.err != nil {
+				fmt.Printf("%-20s %-12s vol:?   %s%s\n", r.speaker.Room, "error", r.speaker.Model, group)
 				continue
 			}
-			track := state.TrackString()
+			track := r.state.TrackString()
 			if track != "" {
 				track = " | " + track
 			}
 			fmt.Printf("%-20s %-12s vol:%-3d %s%s%s\n",
-				s.Room, state.StateString(), state.Volume, s.Model, group, track)
+				r.speaker.Room, r.state.StateString(), r.state.Volume, r.speaker.Model, group, track)
 		}
 	},
 }
