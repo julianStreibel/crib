@@ -1,6 +1,10 @@
 package device
 
-import "sync"
+import (
+	"sync"
+
+	"golang.org/x/sync/errgroup"
+)
 
 // Registry holds all registered providers.
 type Registry struct {
@@ -57,37 +61,61 @@ func (r *Registry) MusicServices() []MusicService {
 	return r.musicServices
 }
 
-// AllDevices returns devices from all configured providers.
+// AllDevices returns devices from all configured providers, querying them concurrently.
 func (r *Registry) AllDevices() ([]Device, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	providers := make([]DeviceProvider, len(r.deviceProviders))
+	copy(providers, r.deviceProviders)
+	r.mu.RUnlock()
 
-	var all []Device
-	for _, p := range r.deviceProviders {
+	results := make([][]Device, len(providers))
+	g := new(errgroup.Group)
+	for i, p := range providers {
 		if !p.IsConfigured() {
 			continue
 		}
-		devices, err := p.Devices()
-		if err != nil {
-			continue // skip failing providers
-		}
-		all = append(all, devices...)
+		g.Go(func() error {
+			devices, err := p.Devices()
+			if err != nil {
+				return nil // skip failing providers
+			}
+			results[i] = devices
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	var all []Device
+	for _, r := range results {
+		all = append(all, r...)
 	}
 	return all, nil
 }
 
-// AllSpeakers returns speakers from all providers.
+// AllSpeakers returns speakers from all providers, discovering them concurrently.
 func (r *Registry) AllSpeakers() ([]Speaker, error) {
 	r.mu.RLock()
-	defer r.mu.RUnlock()
+	providers := make([]SpeakerProvider, len(r.speakerProviders))
+	copy(providers, r.speakerProviders)
+	r.mu.RUnlock()
+
+	results := make([][]Speaker, len(providers))
+	g := new(errgroup.Group)
+	for i, p := range providers {
+		g.Go(func() error {
+			speakers, err := p.Discover()
+			if err != nil {
+				return nil
+			}
+			results[i] = speakers
+			return nil
+		})
+	}
+	_ = g.Wait()
 
 	var all []Speaker
-	for _, p := range r.speakerProviders {
-		speakers, err := p.Discover()
-		if err != nil {
-			continue
-		}
-		all = append(all, speakers...)
+	for _, r := range results {
+		all = append(all, r...)
 	}
 	return all, nil
 }
