@@ -2,9 +2,11 @@ package cmd
 
 import (
 	"fmt"
+	"sync/atomic"
 
 	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 // Sonos-specific commands that don't generalize to other speaker providers.
@@ -61,18 +63,23 @@ var sonosGroupAllCmd = &cobra.Command{
 			}
 		}
 
-		count := 0
+		var count atomic.Int32
+		g := new(errgroup.Group)
 		for _, s := range speakers {
 			if s.IP == coordinator.IP {
 				continue
 			}
-			if err := s.JoinGroup(coordinator.UUID); err != nil {
-				fmt.Printf("warning: could not group %s: %v\n", s.Room, err)
-				continue
-			}
-			count++
+			g.Go(func() error {
+				if err := s.JoinGroup(coordinator.UUID); err != nil {
+					fmt.Printf("warning: could not group %s: %v\n", s.Room, err)
+					return nil
+				}
+				count.Add(1)
+				return nil
+			})
 		}
-		fmt.Printf("Grouped %d speakers with %s\n", count, coordinator.Room)
+		_ = g.Wait()
+		fmt.Printf("Grouped %d speakers with %s\n", count.Load(), coordinator.Room)
 	},
 }
 
@@ -81,17 +88,22 @@ var sonosUngroupAllCmd = &cobra.Command{
 	Short: "Ungroup all speakers (make all standalone)",
 	Run: func(cmd *cobra.Command, args []string) {
 		speakers := mustDiscoverSpeakers()
-		count := 0
+		var count atomic.Int32
+		g := new(errgroup.Group)
 		for _, s := range speakers {
 			if !s.IsCoordinator {
-				if err := s.Ungroup(); err != nil {
-					fmt.Printf("warning: could not ungroup %s: %v\n", s.Room, err)
-					continue
-				}
-				count++
+				g.Go(func() error {
+					if err := s.Ungroup(); err != nil {
+						fmt.Printf("warning: could not ungroup %s: %v\n", s.Room, err)
+						return nil
+					}
+					count.Add(1)
+					return nil
+				})
 			}
 		}
-		fmt.Printf("Ungrouped %d speakers\n", count)
+		_ = g.Wait()
+		fmt.Printf("Ungrouped %d speakers\n", count.Load())
 	},
 }
 

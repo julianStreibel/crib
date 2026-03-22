@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -225,16 +227,21 @@ func getZoneGroupTopology(speakerIP string) ([]*Speaker, error) {
 		}
 	}
 
-	// Fetch model info for each speaker
+	// Fetch model info for each speaker concurrently
+	g := new(errgroup.Group)
 	for _, s := range speakers {
-		desc, err := getDeviceDescription(s.IP)
-		if err == nil {
-			s.Model = desc.Device.DisplayName
-			if s.Model == "" {
-				s.Model = desc.Device.ModelName
+		g.Go(func() error {
+			desc, err := getDeviceDescription(s.IP)
+			if err == nil {
+				s.Model = desc.Device.DisplayName
+				if s.Model == "" {
+					s.Model = desc.Device.ModelName
+				}
 			}
-		}
+			return nil
+		})
 	}
+	_ = g.Wait()
 
 	return speakers, nil
 }
@@ -270,23 +277,36 @@ func extractIPFromLocation(location string) string {
 }
 
 func buildFromSsdp(ips []string) ([]*Speaker, error) {
-	var speakers []*Speaker
-	for _, ip := range ips {
-		desc, err := getDeviceDescription(ip)
-		if err != nil {
-			continue
-		}
-		model := desc.Device.DisplayName
-		if model == "" {
-			model = desc.Device.ModelName
-		}
-		speakers = append(speakers, &Speaker{
-			IP:            ip,
-			UUID:          desc.Device.UDN,
-			Room:          desc.Device.RoomName,
-			Model:         model,
-			IsCoordinator: true,
+	speakers := make([]*Speaker, len(ips))
+	g := new(errgroup.Group)
+	for i, ip := range ips {
+		g.Go(func() error {
+			desc, err := getDeviceDescription(ip)
+			if err != nil {
+				return nil
+			}
+			model := desc.Device.DisplayName
+			if model == "" {
+				model = desc.Device.ModelName
+			}
+			speakers[i] = &Speaker{
+				IP:            ip,
+				UUID:          desc.Device.UDN,
+				Room:          desc.Device.RoomName,
+				Model:         model,
+				IsCoordinator: true,
+			}
+			return nil
 		})
 	}
-	return speakers, nil
+	_ = g.Wait()
+
+	// Filter out nils (failed fetches).
+	var result []*Speaker
+	for _, s := range speakers {
+		if s != nil {
+			result = append(result, s)
+		}
+	}
+	return result, nil
 }

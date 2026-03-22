@@ -5,6 +5,8 @@ import (
 	"html"
 	"strconv"
 	"strings"
+
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -149,45 +151,55 @@ func (s *Speaker) SetMute(mute bool) error {
 
 func (s *Speaker) GetPlaybackState() (*PlaybackState, error) {
 	state := &PlaybackState{}
+	g := new(errgroup.Group)
 
-	// Get transport state
-	resp, err := soapRequest(s.controlIP(), avTransportCtrl, avTransportNS, "GetTransportInfo",
-		"<InstanceID>0</InstanceID>")
-	if err != nil {
+	g.Go(func() error {
+		resp, err := soapRequest(s.controlIP(), avTransportCtrl, avTransportNS, "GetTransportInfo",
+			"<InstanceID>0</InstanceID>")
+		if err != nil {
+			return err
+		}
+		state.State = extractTag(resp, "CurrentTransportState")
+		return nil
+	})
+
+	g.Go(func() error {
+		resp, err := soapRequest(s.controlIP(), avTransportCtrl, avTransportNS, "GetPositionInfo",
+			"<InstanceID>0</InstanceID>")
+		if err != nil {
+			return nil // non-fatal
+		}
+		state.Duration = extractTag(resp, "TrackDuration")
+		state.Position = extractTag(resp, "RelTime")
+		metadata := extractTag(resp, "TrackMetaData")
+		metadata = html.UnescapeString(metadata)
+		if metadata != "" && metadata != "NOT_IMPLEMENTED" {
+			state.Track = extractDIDLTag(metadata, "dc:title")
+			state.Artist = extractDIDLTag(metadata, "dc:creator")
+			state.Album = extractDIDLTag(metadata, "upnp:album")
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		vol, err := s.GetVolume()
+		if err == nil {
+			state.Volume = vol
+		}
+		return nil
+	})
+
+	g.Go(func() error {
+		muted, err := s.GetMute()
+		if err == nil {
+			state.Muted = muted
+		}
+		return nil
+	})
+
+	if err := g.Wait(); err != nil {
 		return nil, err
 	}
-	state.State = extractTag(resp, "CurrentTransportState")
-
-	// Get position info (current track)
-	resp, err = soapRequest(s.controlIP(), avTransportCtrl, avTransportNS, "GetPositionInfo",
-		"<InstanceID>0</InstanceID>")
-	if err != nil {
-		return nil, err
-	}
-	state.Duration = extractTag(resp, "TrackDuration")
-	state.Position = extractTag(resp, "RelTime")
-
-	// Parse track metadata (DIDL-Lite, HTML-encoded)
-	metadata := extractTag(resp, "TrackMetaData")
-	metadata = html.UnescapeString(metadata)
-	if metadata != "" && metadata != "NOT_IMPLEMENTED" {
-		state.Track = extractDIDLTag(metadata, "dc:title")
-		state.Artist = extractDIDLTag(metadata, "dc:creator")
-		state.Album = extractDIDLTag(metadata, "upnp:album")
-	}
-
-	// Get volume
-	vol, err := s.GetVolume()
-	if err == nil {
-		state.Volume = vol
-	}
-
-	// Get mute
-	muted, err := s.GetMute()
-	if err == nil {
-		state.Muted = muted
-	}
-
 	return state, nil
 }
 
