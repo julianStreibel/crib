@@ -11,6 +11,7 @@ import (
 	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/julianStreibel/crib/internal/tradfri"
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 )
 
 var devicesCmd = &cobra.Command{
@@ -48,50 +49,35 @@ var devicesListCmd = &cobra.Command{
 }
 
 var devicesOnCmd = &cobra.Command{
-	Use:   "on <name>",
-	Short: "Turn on a device",
-	Args:  cobra.ExactArgs(1),
+	Use:   "on <name> [name...]",
+	Short: "Turn on one or more devices",
+	Args:  cobra.MinimumNArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		client := mustTradfriClient()
-		defer client.Close()
-		dev := mustFindDevice(client, args[0])
-		checkReachable(dev)
-		if err := client.TurnOn(dev); err != nil {
-			exitErr(cerrors.Provider("tradfri", err))
-		}
-		fmt.Printf("Turned on %s\n", dev.Name)
+		runBulkDeviceAction(cmd, args, "on", func(client *tradfri.Client, dev *tradfri.Device) error {
+			return client.TurnOn(dev)
+		})
 	},
 }
 
 var devicesOffCmd = &cobra.Command{
-	Use:   "off <name>",
-	Short: "Turn off a device",
-	Args:  cobra.ExactArgs(1),
+	Use:   "off <name> [name...]",
+	Short: "Turn off one or more devices",
+	Args:  cobra.MinimumNArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		client := mustTradfriClient()
-		defer client.Close()
-		dev := mustFindDevice(client, args[0])
-		checkReachable(dev)
-		if err := client.TurnOff(dev); err != nil {
-			exitErr(cerrors.Provider("tradfri", err))
-		}
-		fmt.Printf("Turned off %s\n", dev.Name)
+		runBulkDeviceAction(cmd, args, "off", func(client *tradfri.Client, dev *tradfri.Device) error {
+			return client.TurnOff(dev)
+		})
 	},
 }
 
 var devicesToggleCmd = &cobra.Command{
-	Use:   "toggle <name>",
-	Short: "Toggle a device on/off",
-	Args:  cobra.ExactArgs(1),
+	Use:   "toggle <name> [name...]",
+	Short: "Toggle one or more devices on/off",
+	Args:  cobra.MinimumNArgs(0),
 	Run: func(cmd *cobra.Command, args []string) {
-		client := mustTradfriClient()
-		defer client.Close()
-		dev := mustFindDevice(client, args[0])
-		checkReachable(dev)
-		if err := client.Toggle(dev); err != nil {
-			exitErr(cerrors.Provider("tradfri", err))
-		}
-		fmt.Printf("Toggled %s\n", dev.Name)
+		runBulkDeviceAction(cmd, args, "toggled", func(client *tradfri.Client, dev *tradfri.Device) error {
+			return client.Toggle(dev)
+		})
 	},
 }
 
@@ -188,6 +174,85 @@ func mustFindDevice(client *tradfri.Client, query string) *tradfri.Device {
 	return nil
 }
 
+func runBulkDeviceAction(cmd *cobra.Command, args []string, verb string, action func(*tradfri.Client, *tradfri.Device) error) {
+	all, _ := cmd.Flags().GetBool("all")
+	if !all && len(args) == 0 {
+		fmt.Fprintf(os.Stderr, "error: provide device name(s) or use --all\n")
+		os.Exit(1)
+	}
+
+	client := mustTradfriClient()
+	defer client.Close()
+
+	var devices []*tradfri.Device
+	if all {
+		// Full discovery
+		var err error
+		devices, err = client.GetAllDevices()
+		if err != nil {
+			exitErr(cerrors.Provider("tradfri", err))
+		}
+		updateDeviceCache(devices)
+		// Filter to controllable devices (lights and plugs)
+		var controllable []*tradfri.Device
+		for _, d := range devices {
+			if d.Reachable && (d.Type == tradfri.DeviceTypeLight || d.Type == tradfri.DeviceTypePlug) {
+				controllable = append(controllable, d)
+			}
+		}
+		devices = controllable
+	} else if len(args) == 1 {
+		// Single device — use existing mustFindDevice (with cache)
+		dev := mustFindDevice(client, args[0])
+		checkReachable(dev)
+		if err := action(client, dev); err != nil {
+			exitErr(cerrors.Provider("tradfri", err))
+		}
+		fmt.Printf("Turned %s %s\n", verb, dev.Name)
+		return
+	} else {
+		// Multiple named devices — resolve all via cache, then fallback
+		for _, name := range args {
+			dev := mustFindDevice(client, name)
+			checkReachable(dev)
+			devices = append(devices, dev)
+		}
+	}
+
+	if len(devices) == 0 {
+		fmt.Println("No controllable devices found.")
+		return
+	}
+
+	// Fan out operations concurrently
+	type result struct {
+		name string
+		err  error
+	}
+	results := make([]result, len(devices))
+	g := new(errgroup.Group)
+	for i, dev := range devices {
+		results[i].name = dev.Name
+		g.Go(func() error {
+			results[i].err = action(client, dev)
+			return nil
+		})
+	}
+	_ = g.Wait()
+
+	var names []string
+	for _, r := range results {
+		if r.err != nil {
+			fmt.Fprintf(os.Stderr, "warning: %s: %v\n", r.name, r.err)
+		} else {
+			names = append(names, r.name)
+		}
+	}
+	if len(names) > 0 {
+		fmt.Printf("Turned %s %s\n", verb, strings.Join(names, ", "))
+	}
+}
+
 func updateDeviceCache(devices []*tradfri.Device) {
 	c, _ := cache.Load()
 	if c == nil {
@@ -213,6 +278,10 @@ func exitErr(err *cerrors.Error) {
 }
 
 func init() {
+	devicesOnCmd.Flags().BoolP("all", "a", false, "Apply to all reachable lights and plugs")
+	devicesOffCmd.Flags().BoolP("all", "a", false, "Apply to all reachable lights and plugs")
+	devicesToggleCmd.Flags().BoolP("all", "a", false, "Apply to all reachable lights and plugs")
+
 	devicesCmd.AddCommand(devicesListCmd)
 	devicesCmd.AddCommand(devicesOnCmd)
 	devicesCmd.AddCommand(devicesOffCmd)
