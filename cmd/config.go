@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/julianStreibel/crib/internal/config"
+	cerrors "github.com/julianStreibel/crib/internal/errors"
 	"github.com/julianStreibel/crib/internal/tradfri"
 	"github.com/spf13/cobra"
 )
@@ -34,14 +35,12 @@ var testCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		cfg, err := config.LoadTradfri()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.NotConfigured("TRÅDFRI"))
 		}
 
 		client := tradfri.NewClient(cfg.TradfriHost, cfg.TradfriIdentity, cfg.TradfriPSK)
 		if err := client.CheckConnection(); err != nil {
-			fmt.Fprintf(os.Stderr, "Connection failed: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Network("TRÅDFRI gateway", cfg.TradfriHost, err))
 		}
 		fmt.Println("Successfully connected to TRÅDFRI gateway.")
 	},
@@ -64,8 +63,7 @@ var pairCmd = &cobra.Command{
 		fmt.Printf("Registering with gateway at %s...\n", host)
 		identity, psk, err := tradfri.Register(host, securityCode, clientName)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Network("TRÅDFRI gateway", host, err))
 		}
 
 		if err := config.SetMultiple(map[string]string{
@@ -73,8 +71,7 @@ var pairCmd = &cobra.Command{
 			"tradfri_identity": identity,
 			"tradfri_psk":      psk,
 		}); err != nil {
-			fmt.Fprintf(os.Stderr, "error saving config: %v\n", err)
-			os.Exit(1)
+			exitErr(cerrors.Provider("config", err))
 		}
 
 		fmt.Println("Paired successfully. Credentials saved.")
