@@ -52,10 +52,36 @@ func soapRequest(speakerIP, endpoint, serviceURN, action string, params string) 
 	}
 
 	if resp.StatusCode != 200 {
-		return nil, fmt.Errorf("SOAP error %d from %s: %s", resp.StatusCode, speakerIP, string(respBody))
+		return nil, parseSoapError(speakerIP, resp.StatusCode, respBody)
 	}
 
 	return respBody, nil
+}
+
+// Sonos UPnP error codes
+var sonosErrorMessages = map[string]string{
+	"701": "command not available in current state (e.g. pausing when already stopped)",
+	"711": "illegal seek target",
+	"712": "illegal MIME type",
+	"714": "resource not found",
+	"715": "resource not found",
+	"716": "resource not found",
+	"718": "invalid instance ID",
+	"737": "no DNS server",
+	"738": "bad domain name",
+	"739": "server error",
+	"501": "action failed (may need to rediscover speakers with 'crib speakers list')",
+}
+
+func parseSoapError(speakerIP string, statusCode int, body []byte) error {
+	errorCode := extractTag(body, "errorCode")
+	if errorCode != "" {
+		if msg, ok := sonosErrorMessages[errorCode]; ok {
+			return fmt.Errorf("%s (error %s): %s", speakerIP, errorCode, msg)
+		}
+		return fmt.Errorf("%s: UPnP error %s", speakerIP, errorCode)
+	}
+	return fmt.Errorf("SOAP error %d from %s", statusCode, speakerIP)
 }
 
 func extractTag(xmlData []byte, tagName string) string {
