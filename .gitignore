@@ -1,0 +1,30 @@
+# Binary
+crib
+
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Code coverage
+*.out
+coverage.*
+*.coverprofile
+
+# Go workspace
+go.work
+go.work.sum
+
+# Environment
+.env
+
+# macOS
+.DS_Store
+
+# Release
+dist/

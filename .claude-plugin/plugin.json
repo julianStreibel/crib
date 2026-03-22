@@ -1,0 +1,10 @@
+{
+  "name": "crib",
+  "version": "1.0.0",
+  "description": "Control smart home devices — IKEA TRÅDFRI lights/switches, Sonos speakers, and Spotify playback",
+  "author": {
+    "name": "Julian Streibel"
+  },
+  "repository": "https://github.com/julianStreibel/crib",
+  "keywords": ["smart-home", "ikea", "tradfri", "sonos", "spotify", "iot"]
+}

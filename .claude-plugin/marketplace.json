@@ -1,0 +1,22 @@
+{
+  "name": "crib",
+  "owner": {
+    "name": "Julian Streibel"
+  },
+  "metadata": {
+    "description": "Smart home control plugin — IKEA TRÅDFRI, Sonos, Spotify"
+  },
+  "plugins": [
+    {
+      "name": "crib",
+      "source": "./plugin",
+      "description": "Control smart home devices — lights, switches, Sonos speakers, Spotify playback",
+      "version": "1.0.0",
+      "author": {
+        "name": "Julian Streibel"
+      },
+      "repository": "https://github.com/julianStreibel/crib",
+      "keywords": ["smart-home", "ikea", "tradfri", "sonos", "spotify"]
+    }
+  ]
+}
