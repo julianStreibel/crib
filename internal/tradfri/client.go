@@ -248,6 +248,14 @@ func (c *Client) SetBrightness(dev *Device, percent int) error {
 	return c.put(fmt.Sprintf("/15001/%d", dev.ID), payload)
 }
 
+// SetColorTemp sets the color temperature of a light in Kelvin.
+// The value is snapped to the nearest supported TRÅDFRI preset.
+func (c *Client) SetColorTemp(dev *Device, kelvin int) error {
+	preset := nearestPreset(kelvin)
+	payload := fmt.Sprintf(`{"3311":[{"5706":"%s","5850":1}]}`, preset.hex)
+	return c.put(fmt.Sprintf("/15001/%d", dev.ID), payload)
+}
+
 // CheckConnection verifies the gateway is reachable.
 func (c *Client) CheckConnection() error {
 	_, err := c.ListDeviceIDs()

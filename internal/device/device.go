@@ -34,6 +34,10 @@ type DeviceState struct {
 	Reachable  bool
 	Brightness int // 0-100, only meaningful if Dimmable is true
 	Dimmable   bool
+	ColorTemp     bool // true if the device supports color temperature
+	ColorTempK    int  // current color temperature in Kelvin, only meaningful if ColorTemp is true
+	ColorTempMinK int  // minimum supported color temperature in Kelvin
+	ColorTempMaxK int  // maximum supported color temperature in Kelvin
 }
 
 // Device represents a controllable smart home device (light, switch, plug).
@@ -49,6 +53,7 @@ type Device interface {
 	TurnOff() error
 	Toggle() error
 	SetBrightness(percent int) error // returns error if not dimmable
+	SetColorTemp(kelvin int) error   // returns error if not supported
 }
 
 // DeviceProvider discovers and manages devices from a single integration.

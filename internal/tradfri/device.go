@@ -1,6 +1,9 @@
 package tradfri
 
-import "fmt"
+import (
+	"fmt"
+	"math"
+)
 
 type DeviceType int
 
@@ -12,15 +15,60 @@ const (
 	DeviceTypeSensor
 )
 
+// colorTempPreset maps a hex color string (attr 5706) to a Kelvin value.
+type colorTempPreset struct {
+	hex    string
+	kelvin int
+}
+
+// colorTempPresets defines the 4 TRÅDFRI white spectrum presets.
+var colorTempPresets = []colorTempPreset{
+	{"efd275", 2200}, // warm glow
+	{"f1e0b5", 2700}, // warm white
+	{"f2eccf", 3000}, // sunrise
+	{"f5faf6", 4000}, // cool white
+}
+
+// hexToKelvin maps hex color strings to Kelvin values.
+var hexToKelvin = func() map[string]int {
+	m := make(map[string]int, len(colorTempPresets))
+	for _, p := range colorTempPresets {
+		m[p.hex] = p.kelvin
+	}
+	return m
+}()
+
+// nearestPreset returns the hex preset closest to the requested Kelvin.
+func nearestPreset(kelvin int) colorTempPreset {
+	best := colorTempPresets[0]
+	bestDist := math.MaxInt
+	for _, p := range colorTempPresets {
+		dist := kelvin - p.kelvin
+		if dist < 0 {
+			dist = -dist
+		}
+		if dist < bestDist {
+			bestDist = dist
+			best = p
+		}
+	}
+	return best
+}
+
 type Device struct {
-	ID         int
-	Name       string
-	Type       DeviceType
-	On         bool
-	Reachable  bool
-	Brightness int // 0-100 percent
-	Dimmable   bool
-	Model      string
+	ID            int
+	Name          string
+	Type          DeviceType
+	On            bool
+	Reachable     bool
+	Brightness    int // 0-100 percent
+	Dimmable      bool
+	ColorTemp     bool   // true if the device supports color temperature
+	ColorTempK    int    // current color temperature in Kelvin
+	ColorTempMinK int    // minimum supported Kelvin
+	ColorTempMaxK int    // maximum supported Kelvin
+	ColorHex      string // current hex color (attr 5706), used internally
+	Model         string
 }
 
 func (d *Device) TypeString() string {
@@ -46,6 +94,9 @@ func (d *Device) StateString() string {
 		return "off"
 	}
 	if d.Dimmable && d.Type == DeviceTypeLight {
+		if d.ColorTemp {
+			return fmt.Sprintf("on (%d%%, %dK)", d.Brightness, d.ColorTempK)
+		}
 		return fmt.Sprintf("on (%d%%)", d.Brightness)
 	}
 	return "on"
@@ -103,6 +154,17 @@ func parseDevice(raw map[string]interface{}) *Device {
 			if v, ok := light["5851"].(float64); ok {
 				dev.Brightness = int(v / 254.0 * 100.0)
 				dev.Dimmable = true
+			}
+			if v, ok := light["5706"].(string); ok {
+				dev.ColorHex = v
+				dev.ColorTemp = true
+				dev.ColorTempMinK = colorTempPresets[0].kelvin
+				dev.ColorTempMaxK = colorTempPresets[len(colorTempPresets)-1].kelvin
+				if k, found := hexToKelvin[v]; found {
+					dev.ColorTempK = k
+				} else if mireds, ok := light["5711"].(float64); ok && mireds > 0 {
+					dev.ColorTempK = 1000000 / int(mireds)
+				}
 			}
 		}
 	}
