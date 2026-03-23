@@ -31,6 +31,7 @@ func (m *mockDevice) TurnOn() error           { return nil }
 func (m *mockDevice) TurnOff() error          { return nil }
 func (m *mockDevice) Toggle() error           { return nil }
 func (m *mockDevice) SetBrightness(int) error { return nil }
+func (m *mockDevice) SetColorTemp(int) error  { return nil }
 
 func TestRegistryDeviceProviders(t *testing.T) {
 	r := NewRegistry()

@@ -20,6 +20,8 @@ type Device struct {
 	Reachable  bool
 	Brightness int // 0-100 percent
 	Dimmable   bool
+	ColorTemp  bool // true if the device supports color temperature
+	ColorTempK int  // current color temperature in Kelvin
 	Model      string
 }
 
@@ -46,6 +48,9 @@ func (d *Device) StateString() string {
 		return "off"
 	}
 	if d.Dimmable && d.Type == DeviceTypeLight {
+		if d.ColorTemp {
+			return fmt.Sprintf("on (%d%%, %dK)", d.Brightness, d.ColorTempK)
+		}
 		return fmt.Sprintf("on (%d%%)", d.Brightness)
 	}
 	return "on"
@@ -103,6 +108,13 @@ func parseDevice(raw map[string]interface{}) *Device {
 			if v, ok := light["5851"].(float64); ok {
 				dev.Brightness = int(v / 254.0 * 100.0)
 				dev.Dimmable = true
+			}
+			if v, ok := light["5711"].(float64); ok {
+				mireds := int(v)
+				if mireds > 0 {
+					dev.ColorTemp = true
+					dev.ColorTempK = 1000000 / mireds
+				}
 			}
 		}
 	}

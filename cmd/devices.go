@@ -113,6 +113,48 @@ var devicesDimCmd = &cobra.Command{
 	},
 }
 
+var colorTempAliases = map[string]int{
+	"warm":    2700,
+	"neutral": 4000,
+	"cool":    6500,
+}
+
+var devicesTempCmd = &cobra.Command{
+	Use:   "temp <name> <kelvin|warm|neutral|cool>",
+	Short: "Set device color temperature",
+	Args:  cobra.ExactArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustTradfriClient()
+		defer client.Close()
+		dev := mustFindDevice(client, args[0])
+		checkReachable(dev)
+
+		if !dev.ColorTemp {
+			exitErr(cerrors.InvalidArgWithHint(
+				fmt.Sprintf("'%s' does not support color temperature", dev.Name),
+				"only lights with color temperature support this command",
+			))
+		}
+
+		kelvin, ok := colorTempAliases[strings.ToLower(args[1])]
+		if !ok {
+			var err error
+			kelvin, err = strconv.Atoi(args[1])
+			if err != nil || kelvin < 1000 || kelvin > 10000 {
+				exitErr(cerrors.InvalidArgWithHint(
+					fmt.Sprintf("invalid temperature '%s'", args[1]),
+					"usage: crib devices temp <name> <kelvin|warm|neutral|cool>",
+				))
+			}
+		}
+
+		if err := client.SetColorTemp(dev, kelvin); err != nil {
+			exitErr(cerrors.Provider("tradfri", err))
+		}
+		fmt.Printf("Set %s color temperature to %dK\n", dev.Name, kelvin)
+	},
+}
+
 func mustTradfriClient() *tradfri.Client {
 	cfg, err := config.LoadTradfri()
 	if err != nil {
@@ -287,5 +329,6 @@ func init() {
 	devicesCmd.AddCommand(devicesOffCmd)
 	devicesCmd.AddCommand(devicesToggleCmd)
 	devicesCmd.AddCommand(devicesDimCmd)
+	devicesCmd.AddCommand(devicesTempCmd)
 	rootCmd.AddCommand(devicesCmd)
 }
