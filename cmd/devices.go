@@ -114,13 +114,14 @@ var devicesDimCmd = &cobra.Command{
 }
 
 var colorTempAliases = map[string]int{
-	"warm":    2700,
-	"neutral": 4000,
-	"cool":    6500,
+	"warm":    2200,
+	"neutral": 2700,
+	"sunrise": 3000,
+	"cool":    4000,
 }
 
 var devicesTempCmd = &cobra.Command{
-	Use:   "temp <name> <kelvin|warm|neutral|cool>",
+	Use:   "temp <name> <kelvin|warm|neutral|sunrise|cool>",
 	Short: "Set device color temperature",
 	Args:  cobra.ExactArgs(2),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -143,7 +144,7 @@ var devicesTempCmd = &cobra.Command{
 			if err != nil || kelvin < 1000 || kelvin > 10000 {
 				exitErr(cerrors.InvalidArgWithHint(
 					fmt.Sprintf("invalid temperature '%s'", args[1]),
-					"usage: crib devices temp <name> <kelvin|warm|neutral|cool>",
+					"usage: crib devices temp <name> <kelvin|warm|neutral|sunrise|cool>",
 				))
 			}
 		}

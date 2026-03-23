@@ -249,15 +249,10 @@ func (c *Client) SetBrightness(dev *Device, percent int) error {
 }
 
 // SetColorTemp sets the color temperature of a light in Kelvin.
+// The value is snapped to the nearest supported TRÅDFRI preset.
 func (c *Client) SetColorTemp(dev *Device, kelvin int) error {
-	if kelvin < 2200 {
-		kelvin = 2200
-	}
-	if kelvin > 4000 {
-		kelvin = 4000
-	}
-	mireds := 1000000 / kelvin
-	payload := fmt.Sprintf(`{"3311":[{"5850":1,"5711":%d}]}`, mireds)
+	preset := nearestPreset(kelvin)
+	payload := fmt.Sprintf(`{"3311":[{"5706":"%s","5850":1}]}`, preset.hex)
 	return c.put(fmt.Sprintf("/15001/%d", dev.ID), payload)
 }
 

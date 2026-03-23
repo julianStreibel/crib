@@ -26,7 +26,7 @@ crib devices toggle <name> [name...]         # Toggle on/off
 crib devices on --all                        # Turn on all reachable lights and plugs
 crib devices off --all                       # Turn off all reachable lights and plugs
 crib devices dim <name> <0-100>              # Set brightness (dimmable lights only)
-crib devices temp <name> <kelvin|warm|neutral|cool>  # Set color temperature
+crib devices temp <name> <kelvin|warm|neutral|sunrise|cool>  # Set color temperature
 ```
 
 ## Speakers
