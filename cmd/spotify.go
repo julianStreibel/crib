@@ -375,6 +375,162 @@ var spotifyRadioCmd = &cobra.Command{
 	},
 }
 
+var spotifyPlaylistCmd = &cobra.Command{
+	Use:   "playlist",
+	Short: "Manage Spotify playlists",
+}
+
+var spotifyPlaylistListCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List your playlists",
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		playlists, err := client.GetMyPlaylists(50)
+		if err != nil {
+			exitSpotifyErr(err)
+		}
+		if len(playlists) == 0 {
+			fmt.Println("No playlists found.")
+			return
+		}
+		for _, p := range playlists {
+			fmt.Printf("%-40s %3d tracks  %s\n", p.Name, p.Items.Total, p.URI)
+		}
+	},
+}
+
+var spotifyPlaylistPlayCmd = &cobra.Command{
+	Use:   "play <playlist name>",
+	Short: "Play a playlist by name",
+	Args:  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		playlist := findPlaylist(client, strings.Join(args, " "))
+		if err := client.PlayURI(playlist.URI, ""); err != nil {
+			exitSpotifyErr(err)
+		}
+		fmt.Printf("Playing playlist: %s\n", playlist.Name)
+	},
+}
+
+var spotifyPlaylistCreateCmd = &cobra.Command{
+	Use:   "create <name>",
+	Short: "Create a new playlist",
+	Args:  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		name := strings.Join(args, " ")
+
+		pl, err := client.CreatePlaylist(name, false)
+		if err != nil {
+			exitSpotifyErr(err)
+		}
+		fmt.Printf("Created playlist: %s (%s)\n", pl.Name, pl.URI)
+	},
+}
+
+var spotifyPlaylistAddCmd = &cobra.Command{
+	Use:   "add <playlist name> <search query or spotify URI>",
+	Short: "Add a track to a playlist",
+	Args:  cobra.MinimumNArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		playlist := findPlaylist(client, args[0])
+		uri := resolveTrackURI(strings.Join(args[1:], " "))
+
+		if err := client.AddToPlaylist(playlist.ID, []string{uri}); err != nil {
+			exitSpotifyErr(err)
+		}
+		fmt.Printf("Added to %s.\n", playlist.Name)
+	},
+}
+
+var spotifyPlaylistRemoveCmd = &cobra.Command{
+	Use:   "remove <playlist name> <search query or spotify URI>",
+	Short: "Remove a track from a playlist",
+	Args:  cobra.MinimumNArgs(2),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		playlist := findPlaylist(client, args[0])
+		uri := resolveTrackURI(strings.Join(args[1:], " "))
+
+		if err := client.RemoveFromPlaylist(playlist.ID, []string{uri}); err != nil {
+			exitSpotifyErr(err)
+		}
+		fmt.Printf("Removed from %s.\n", playlist.Name)
+	},
+}
+
+var spotifyPlaylistShowCmd = &cobra.Command{
+	Use:   "show <playlist name>",
+	Short: "Show tracks in a playlist",
+	Args:  cobra.MinimumNArgs(1),
+	Run: func(cmd *cobra.Command, args []string) {
+		client := mustPlayerClient()
+		playlist := findPlaylist(client, strings.Join(args, " "))
+
+		items, err := client.GetPlaylistItems(playlist.ID, 50)
+		if err != nil {
+			exitSpotifyErr(err)
+		}
+
+		fmt.Printf("%s (%d tracks)\n\n", playlist.Name, playlist.Items.Total)
+		for i, t := range items {
+			artists := make([]string, len(t.Item.Artists))
+			for j, a := range t.Item.Artists {
+				artists[j] = a.Name
+			}
+			fmt.Printf("%3d. %s - %s\n", i+1, strings.Join(artists, ", "), t.Item.Name)
+		}
+	},
+}
+
+// findPlaylist finds a user's playlist by fuzzy name match.
+func findPlaylist(client *spotify.PlayerClient, query string) *spotify.UserPlaylist {
+	playlists, err := client.GetMyPlaylists(50)
+	if err != nil {
+		exitSpotifyErr(err)
+	}
+	q := strings.ToLower(query)
+	for _, p := range playlists {
+		if strings.Contains(strings.ToLower(p.Name), q) {
+			return &p
+		}
+	}
+	available := make([]string, len(playlists))
+	for i, p := range playlists {
+		available[i] = p.Name
+	}
+	exitErr(&cerrors.Error{
+		Code:      cerrors.CodeNotFound,
+		Message:   fmt.Sprintf("no playlist matching '%s'", query),
+		Available: available,
+		Hint:      "use 'crib spotify playlist list' to see all playlists",
+	})
+	return nil
+}
+
+// resolveTrackURI resolves a search query or Spotify URI to a track URI.
+func resolveTrackURI(query string) string {
+	if strings.HasPrefix(query, "spotify:") {
+		return query
+	}
+	searchClient := mustSpotifySearchClient()
+	results, err := searchClient.Search(query, "track", 1)
+	if err != nil {
+		exitErr(cerrors.Provider("spotify", err))
+	}
+	if len(results.Tracks) == 0 {
+		exitErr(&cerrors.Error{
+			Code:    cerrors.CodeNotFound,
+			Message: fmt.Sprintf("no track matching '%s'", query),
+			Hint:    "try a different search query, or use a spotify:track:URI directly",
+		})
+	}
+	fmt.Printf("Found: %s - %s\n", results.Tracks[0].Artists, results.Tracks[0].Name)
+	return results.Tracks[0].URI
+}
+
 // exitSpotifyErr converts common Spotify API errors to structured errors.
 func exitSpotifyErr(err error) {
 	msg := err.Error()
@@ -429,5 +585,12 @@ func init() {
 	spotifyCmd.AddCommand(spotifyShuffleCmd)
 	spotifyCmd.AddCommand(spotifyQueueCmd)
 	spotifyCmd.AddCommand(spotifyRadioCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistListCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistPlayCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistCreateCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistAddCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistRemoveCmd)
+	spotifyPlaylistCmd.AddCommand(spotifyPlaylistShowCmd)
+	spotifyCmd.AddCommand(spotifyPlaylistCmd)
 	rootCmd.AddCommand(spotifyCmd)
 }

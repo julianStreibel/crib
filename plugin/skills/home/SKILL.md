@@ -74,6 +74,12 @@ crib spotify repeat <track|playlist|off>     # Set repeat mode
 crib spotify shuffle <on|off>                # Set shuffle mode
 crib spotify queue <query>                   # Add track to queue
 crib spotify radio <query>                   # Play similar tracks based on a song
+crib spotify playlist list                   # List your playlists
+crib spotify playlist show <name>            # Show tracks in a playlist
+crib spotify playlist play <name>            # Play a playlist by name
+crib spotify playlist create <name>          # Create a new playlist
+crib spotify playlist add <playlist> <track>       # Add track to playlist
+crib spotify playlist remove <playlist> <track>    # Remove track from playlist
 ```
 
 ## Guidelines
@@ -85,6 +91,7 @@ crib spotify radio <query>                   # Play similar tracks based on a so
 - **Unreachable devices**: Some show as "unreachable" — they're powered off at the switch, nothing you can do remotely.
 - When the user says "turn off the lights", use `crib devices off --all`. For multiple specific devices, pass all names in one command: `crib devices off Flur Kugel Stehlampe`.
 - When asked to "play music", prefer `spotify play` if there's an active session, or `speakers play <room>` for a specific room.
+- **Playlist commands**: For `playlist add` and `playlist remove`, the first argument is the playlist name (fuzzy matched, use a unique word) and the remaining arguments are the track search query. For multi-word playlist names, quote them: `crib spotify playlist add "Summer Playlist" bohemian rhapsody`. Use `playlist list` first to see exact names.
 - **Errors include hints** — read them to know what to do next (e.g. "run crib setup", "device is unreachable").
 - Be conversational: "Turned on the Kugel and dimmed it to 50%", not "Executed crib devices on kugel".
 
