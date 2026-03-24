@@ -22,7 +22,7 @@ const (
 	authURL     = "https://accounts.spotify.com/authorize"
 	tokenURL    = "https://accounts.spotify.com/api/token"
 	redirectURI = "http://127.0.0.1:8089/callback"
-	scopes      = "user-read-playback-state user-modify-playback-state user-read-currently-playing"
+	scopes      = "user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-modify-public playlist-modify-private"
 )
 
 type TokenData struct {
@@ -451,6 +451,100 @@ func (p *PlayerClient) GetRecommendations(seedTrackID string, limit int) ([]stri
 		uris[i] = t.URI
 	}
 	return uris, nil
+}
+
+// UserPlaylist represents a Spotify playlist with full details.
+type UserPlaylist struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	URI   string `json:"uri"`
+	Owner struct {
+		DisplayName string `json:"display_name"`
+	} `json:"owner"`
+	Items struct {
+		Total int `json:"total"`
+	} `json:"items"`
+}
+
+// PlaylistItem represents an item inside a playlist.
+type PlaylistItem struct {
+	Item struct {
+		Name    string `json:"name"`
+		URI     string `json:"uri"`
+		Artists []struct {
+			Name string `json:"name"`
+		} `json:"artists"`
+	} `json:"item"`
+}
+
+// GetMyPlaylists returns the current user's playlists.
+func (p *PlayerClient) GetMyPlaylists(limit int) ([]UserPlaylist, error) {
+	if limit == 0 {
+		limit = 50
+	}
+	body, _, err := p.request("GET", fmt.Sprintf("/me/playlists?limit=%d", limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Items []UserPlaylist `json:"items"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+	return result.Items, nil
+}
+
+// GetPlaylistItems returns the items in a playlist.
+func (p *PlayerClient) GetPlaylistItems(playlistID string, limit int) ([]PlaylistItem, error) {
+	if limit == 0 {
+		limit = 50
+	}
+	body, _, err := p.request("GET", fmt.Sprintf("/playlists/%s/items?limit=%d", playlistID, limit), nil)
+	if err != nil {
+		return nil, err
+	}
+	var result struct {
+		Items []PlaylistItem `json:"items"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+	return result.Items, nil
+}
+
+// CreatePlaylist creates a new playlist for the current user.
+func (p *PlayerClient) CreatePlaylist(name string, public bool) (*UserPlaylist, error) {
+	payload := fmt.Sprintf(`{"name":%q,"public":%t}`, name, public)
+	body, _, err := p.request("POST", "/me/playlists", strings.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	var pl UserPlaylist
+	if err := json.Unmarshal(body, &pl); err != nil {
+		return nil, err
+	}
+	return &pl, nil
+}
+
+// AddToPlaylist adds track URIs to a playlist.
+func (p *PlayerClient) AddToPlaylist(playlistID string, uris []string) error {
+	uriJSON, _ := json.Marshal(uris)
+	payload := fmt.Sprintf(`{"uris":%s}`, string(uriJSON))
+	_, _, err := p.request("POST", fmt.Sprintf("/playlists/%s/items", playlistID), strings.NewReader(payload))
+	return err
+}
+
+// RemoveFromPlaylist removes track URIs from a playlist.
+func (p *PlayerClient) RemoveFromPlaylist(playlistID string, uris []string) error {
+	items := make([]map[string]string, len(uris))
+	for i, uri := range uris {
+		items[i] = map[string]string{"uri": uri}
+	}
+	itemsJSON, _ := json.Marshal(items)
+	payload := fmt.Sprintf(`{"items":%s}`, string(itemsJSON))
+	_, _, err := p.request("DELETE", fmt.Sprintf("/playlists/%s/items", playlistID), strings.NewReader(payload))
+	return err
 }
 
 // PlayURIs plays a list of track URIs.
